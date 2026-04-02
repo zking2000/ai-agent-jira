@@ -2,3 +2,6 @@ node_modules/
 dist/
 .env
 .DS_Store
+config/jira-routing.json
+data/jira-records/
+data/jira-metadata/

@@ -62,6 +62,11 @@ export interface TicketFieldSet {
   labelsSuggestion?: string[];
   componentsSuggestion?: string[];
   prioritySuggestion?: string;
+  assigneeAccountIdSuggestion?: string;
+  assigneeDisplayNameSuggestion?: string;
+  epicSuggestion?: string;
+  customFieldSuggestions?: Record<string, unknown>;
+  routingSuggestionNotes?: string[];
   knownInformation?: string[];
   inferredInformation?: string[];
 }

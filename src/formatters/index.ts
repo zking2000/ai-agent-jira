@@ -36,8 +36,15 @@ function formatMarkdown(ticket: TicketFieldSet): string {
     section("Technical Notes", ticket.technicalNotes).trimEnd(),
     section("Dependencies", ticket.dependencies).trimEnd(),
     section("Risks", ticket.risks).trimEnd(),
+    section("Assignee Suggestion", ticket.assigneeDisplayNameSuggestion || ticket.assigneeAccountIdSuggestion).trimEnd(),
+    section("Epic Suggestion", ticket.epicSuggestion).trimEnd(),
     section("Assumptions", ticket.assumptions).trimEnd(),
     section("Open Questions", ticket.openQuestions).trimEnd(),
+    section(
+      "Custom Field Suggestions",
+      ticket.customFieldSuggestions ? JSON.stringify(ticket.customFieldSuggestions, null, 2) : undefined,
+    ).trimEnd(),
+    section("Routing Notes", ticket.routingSuggestionNotes).trimEnd(),
     section("Suggested Follow-up Questions", ticket.suggestedFollowUpQuestions).trimEnd(),
     section("Known Information", ticket.knownInformation).trimEnd(),
     section("Inferred Information", ticket.inferredInformation).trimEnd(),
@@ -70,8 +77,15 @@ function formatJiraMarkup(ticket: TicketFieldSet): string {
     text("Technical Notes", ticket.technicalNotes),
     text("Dependencies", ticket.dependencies),
     text("Risks", ticket.risks),
+    text("Assignee Suggestion", ticket.assigneeDisplayNameSuggestion || ticket.assigneeAccountIdSuggestion),
+    text("Epic Suggestion", ticket.epicSuggestion),
     text("Assumptions", ticket.assumptions),
     text("Open Questions", ticket.openQuestions),
+    text(
+      "Custom Field Suggestions",
+      ticket.customFieldSuggestions ? JSON.stringify(ticket.customFieldSuggestions, null, 2) : undefined,
+    ),
+    text("Routing Notes", ticket.routingSuggestionNotes),
   ]
     .filter(Boolean)
     .join("\n\n");

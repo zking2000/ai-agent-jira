@@ -1,0 +1,42 @@
+{
+  "defaults": {
+    "projectKey": "PLAT",
+    "assigneeAccountId": "712020:example-default-account-id",
+    "priorityName": "Medium",
+    "labels": ["ai-generated", "auto-created"]
+  },
+  "rules": [
+    {
+      "name": "observability-bugs",
+      "match": {
+        "systems": ["grafana", "loki", "tempo", "otel"],
+        "issueTypes": ["Bug", "Improvement"]
+      },
+      "apply": {
+        "projectKey": "OBS",
+        "assigneeAccountId": "712020:observability-owner-account-id",
+        "assigneeDisplayName": "Observability Owner",
+        "epicKey": "OBS-123",
+        "priorityName": "High",
+        "labels": ["observability"],
+        "components": ["grafana"],
+        "customFields": {
+          "customfield_12345": "SRE"
+        }
+      }
+    },
+    {
+      "name": "delivery-platform",
+      "match": {
+        "keywords": ["jenkins", "pipeline", "audit", "gateway", "kong"]
+      },
+      "apply": {
+        "projectKey": "DEVOPS",
+        "assigneeAccountId": "712020:delivery-owner-account-id",
+        "assigneeDisplayName": "Delivery Platform Owner",
+        "epicKey": "DEVOPS-456",
+        "labels": ["platform-engineering"]
+      }
+    }
+  ]
+}

@@ -8,6 +8,10 @@
 - 规则引擎式 `issue type` 分类
 - 低信息输入兜底 draft 生成
 - 可替换的 `LLM` 抽象层
+- `Jira Cloud API` 直接建票能力
+- 基于路由规则的 `project / assignee / epic / priority / custom fields` 自动推断
+- 自动查询 Jira metadata，降低手工查字段和账号 ID 的成本
+- 创建成功后自动保存本地记录
 - 多种输出模式：`minimal`、`standard`、`detailed`、`jira_markup`、`json`
 - 多种渲染格式：`markdown`、`jira`、`json`
 - few-shot 示例与 prompt 模板
@@ -43,6 +47,10 @@
 7. `response-parser` 解析 LLM JSON 输出，失败时回退到规则草稿
 8. `quality-checker` 修正标题、验收标准并补充警告
 9. `ticket-formatter` 输出为 Markdown / JIRA Markup / JSON
+10. `jira-routing` 基于关键词、系统、issue type 做 Jira 路由决策
+11. `jira-client` 将统一 ticket 数据结构映射并创建到真实 Jira
+12. `jira-record-store` 保存本地创建记录，便于审计与追踪
+13. `jira-metadata` 拉取字段、优先级、组件、issue type、可分配用户，并生成路由配置
 
 这样设计的原因：
 
@@ -56,6 +64,8 @@
 ```text
 ai-agent-jira/
 ├── .env.example
+├── config/
+│   └── jira-routing.example.json
 ├── package.json
 ├── tsconfig.json
 ├── README.md
@@ -75,6 +85,11 @@ ai-agent-jira/
     │   └── ticket-service.ts
     ├── formatters/
     │   └── index.ts
+    ├── integrations/
+    │   ├── jira-client.ts
+    │   ├── jira-metadata.ts
+    │   ├── jira-record-store.ts
+    │   └── jira-routing.ts
     ├── llm/
     │   ├── base.ts
     │   ├── mock-client.ts
@@ -128,6 +143,36 @@ ai-agent-jira/
 
 - 将统一 ticket 数据结构格式化为 Markdown / JIRA / JSON
 
+### `jira-client`
+
+- 使用 Jira Cloud REST API 直接创建 issue
+- 自动解析项目可用 issue type，并做合理映射
+- 自动按项目现有组件匹配 `componentsSuggestion`
+- 将结构化 ticket 转换为 Jira ADF 描述
+
+### `jira-routing`
+
+- 用配置文件承载自动路由规则，而不是把分派逻辑写死在代码里
+- 支持根据 `keywords / systems / issueTypes / labels / priorities` 自动推断：
+- `projectKey`
+- `assigneeAccountId`
+- `epicKey`
+- `priorityName`
+- `components`
+- `customFields`
+
+### `jira-record-store`
+
+- 将每次建票结果保存到本地 `jsonl`
+- 记录原始输入、Jira key、浏览链接、路由决策和最终 ticket 快照
+
+### `jira-metadata`
+
+- 自动抓取 Jira metadata
+- 保存字段、优先级、项目、组件、issue type、assignable users 的本地缓存
+- 自动推断 `Epic Link` 字段 ID
+- 自动生成或刷新 `config/jira-routing.json`
+
 ## Prompt 设计原则
 
 项目没有把逻辑全部塞进一个 prompt，而是采用 “规则先行 + LLM 增强” 的策略：
@@ -166,6 +211,15 @@ LLM_PROVIDER=openai
 LLM_BASE_URL=http://127.0.0.1:4000/v1
 LLM_API_KEY=local-proxy
 LLM_MODEL=gpt-4.1-mini
+JIRA_BASE_URL=https://your-domain.atlassian.net
+JIRA_EMAIL=your-email@example.com
+JIRA_API_TOKEN=your_jira_api_token
+JIRA_PROJECT_KEY=PLAT
+JIRA_DEFAULT_ASSIGNEE_ACCOUNT_ID=
+JIRA_EPIC_LINK_FIELD_ID=customfield_10014
+JIRA_ROUTING_CONFIG=config/jira-routing.json
+JIRA_RECORD_DIR=data/jira-records
+JIRA_METADATA_DIR=data/jira-metadata
 DEFAULT_OUTPUT_MODE=standard
 DEFAULT_FORMAT=markdown
 LOG_LEVEL=info
@@ -191,12 +245,88 @@ LLM_MODEL=qwen2.5-14b-instruct
 
 如果暂时不想接任何模型，可以把 `LLM_PROVIDER` 设为 `mock`，系统仍可用规则引擎生成 draft。
 
+如果要直接创建 Jira issue，请补齐以下配置：
+
+- `JIRA_BASE_URL`
+- `JIRA_EMAIL`
+- `JIRA_API_TOKEN`
+- `JIRA_PROJECT_KEY`
+
+如果要启用“最少输入自动路由”，建议再配置：
+
+- `JIRA_EPIC_LINK_FIELD_ID`
+- `JIRA_ROUTING_CONFIG`
+- `JIRA_DEFAULT_ASSIGNEE_ACCOUNT_ID`
+
+说明：
+
+- 当前实现优先支持 `Jira Cloud`
+- 认证方式为 `email + API token`
+- issue 创建使用 `/rest/api/3/issue`
+- 描述字段自动转换为 Jira ADF 文档结构
+- `config/jira-routing.json` 可覆盖项目、经办人、Epic 和自定义字段的自动推断
+- 创建记录默认保存到 `data/jira-records/*.jsonl`
+- metadata 缓存默认保存到 `data/jira-metadata/*.json`
+
+推荐先复制一份路由配置：
+
+```bash
+cp config/jira-routing.example.json config/jira-routing.json
+```
+
+如果你已经配好了 Jira 凭据，推荐直接跑一遍 metadata 同步和 routing 生成：
+
+```bash
+npm run dev -- sync-metadata --projects PLAT,OBS,DEVOPS
+npm run dev -- bootstrap-routing --projects PLAT,OBS,DEVOPS
+```
+
 ## 运行
 
 开发模式：
 
 ```bash
 npm run dev -- generate --input "grafana 登录403" --mode standard --format markdown --no-llm
+```
+
+直接创建 Jira issue：
+
+```bash
+npm run dev -- create --input "生产 grafana 经常自动退出登录" --mode standard
+```
+
+指定项目 Key：
+
+```bash
+npm run dev -- create --input "给 kong dp 加 tracing" --project PLAT
+```
+
+只预览将要创建的 Jira 内容，不真正建票：
+
+```bash
+npm run dev -- create --input "grafana 登录403" --dry-run
+```
+
+预览时除了 ticket 内容，还会显示：
+
+- 自动选择的 `project`
+- 自动匹配的 `issue type`
+- 自动推断的 `priority`
+- 自动指定的 `assignee`
+- 自动挂接的 `epic`
+- 自动写入的 `custom fields`
+- 命中的路由规则
+
+同步 Jira metadata：
+
+```bash
+npm run dev -- sync-metadata --projects PLAT,OBS,DEVOPS
+```
+
+基于 Jira metadata 自动生成 routing 配置：
+
+```bash
+npm run dev -- bootstrap-routing --projects PLAT,OBS,DEVOPS --print
 ```
 
 查看 few-shot 示例：
@@ -273,6 +403,68 @@ npm run dev -- generate --input "调研 grafana 多租户方案" --mode detailed
 npm run dev -- generate --input "优化 loki 日志标签" --mode json --format json --no-llm
 ```
 
+```bash
+npm run dev -- create --input "jenkins pipeline audit" --project DEVOPS
+```
+
+## 自动路由最佳实践
+
+为了让用户只输入一句话也能正确建票，建议把组织知识沉淀到 `config/jira-routing.json`：
+
+- 按系统域拆规则，例如 `grafana / loki / tempo / otel`
+- 按平台域拆规则，例如 `jenkins / pipeline / gateway / kong`
+- 为每类规则预设：
+- 默认 project
+- 默认 assignee accountId
+- 默认 epicKey
+- 默认 labels / components
+- 所需 custom fields
+
+这样最终用户只输入：
+
+```text
+grafana 登录403
+```
+
+系统也能自动做出一整套决策：
+
+- 生成高质量 ticket
+- 自动归到正确项目
+- 自动指定 assignee
+- 自动挂接 epic
+- 自动带上 custom fields
+- 自动建票并返回链接
+- 自动保存本地记录
+
+## 这两项功能的实际好处
+
+### 1. 定制 `config/jira-routing.json`
+
+好处是把团队知识前置沉淀成规则，而不是每次建票都靠人临时补：
+
+- 你只输一句话，系统也能自动决定归哪个项目
+- 能按领域自动选 assignee / epic / labels / components
+- 同类 ticket 的建票方式更稳定，不依赖个人经验
+- 后续团队扩展时，只改配置，不用改代码
+
+### 2. 自动查询 Jira metadata
+
+好处是减少你手工找 Jira 元信息的时间成本：
+
+- 不用手查 `customfield_xxxxx`
+- 不用手查项目支持哪些 issue type
+- 不用手查组件名拼写
+- 不用手查 priority 的实际名称
+- 不用手查可分配用户账号 ID
+- 可以自动建议 `Epic Link` 字段 ID
+
+两者结合后的价值是：
+
+- 前期配置成本更低
+- 后续维护成本更低
+- 自动建票的正确率更高
+- 更适合“我只给最少必要信息，其余都让系统补齐”的使用方式
+
 ## 5 个示例输入与预期方向
 
 ### 1. `grafana 登录403`
@@ -304,12 +496,12 @@ npm run dev -- generate --input "优化 loki 日志标签" --mode json --format 
 
 建议按以下方向迭代：
 
-1. 新增 `src/integrations/jira-client.ts`，把统一 `TicketFieldSet` 映射为真实 JIRA 字段。
-2. 增加 `project templates`，支持不同团队的字段风格、默认 labels、组件和优先级策略。
-3. 增加 `history-based learning`，基于历史 ticket 做风格对齐和字段建议。
-4. 增加 `REST API` 和简易 Web UI，便于内部工具接入。
-5. 增加 `bilingual output`，支持中英文 ticket。
-6. 增加 `evaluation dataset`，对标题质量、分类准确率、验收标准质量做离线评估。
+1. 增加 `project templates`，支持不同团队的字段风格、默认 labels、组件和优先级策略。
+2. 增加 `history-based learning`，基于历史 ticket 做风格对齐和字段建议。
+3. 增加 `REST API` 和简易 Web UI，便于内部工具接入。
+4. 增加 `bilingual output`，支持中英文 ticket。
+5. 增加 `evaluation dataset`，对标题质量、分类准确率、验收标准质量做离线评估。
+6. 支持 Reporter、Watcher、Sprint、Parent Link 等更多 Jira 字段自动映射。
 
 ## 设计原则总结
 
