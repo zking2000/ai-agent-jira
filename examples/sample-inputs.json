@@ -1,0 +1,26 @@
+[
+  {
+    "input": "grafana 登录403",
+    "expectedIssueType": "Bug"
+  },
+  {
+    "input": "给 kong dp 加 tracing",
+    "expectedIssueType": "Story"
+  },
+  {
+    "input": "jenkins pipeline audit",
+    "expectedIssueType": "Task"
+  },
+  {
+    "input": "调研 grafana 多租户方案",
+    "expectedIssueType": "Spike"
+  },
+  {
+    "input": "优化 loki 日志标签",
+    "expectedIssueType": "Improvement"
+  },
+  {
+    "input": "生产 grafana 经常自动退出登录",
+    "expectedIssueType": "Bug"
+  }
+]
